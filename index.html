@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPN Dashboard</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --border-color: #000000;
+            --btn-bg: #000000;
+            --btn-text: #ffffff;
+        }
+
+        body.dark-theme {
+            --bg-color: #0a0a0a;
+            --text-color: #ffffff;
+            --border-color: #ffffff;
+            --btn-bg: #ffffff;
+            --btn-text: #000000;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Courier New', Courier, monospace; /* Технический, строгий шрифт */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .header {
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .card {
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+
+        .value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            text-align: center;
+            text-transform: uppercase;
+            font-weight: bold;
+            font-family: inherit;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .btn:active {
+            opacity: 0.8;
+        }
+
+        #loader {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 50px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="app" class="hidden">
+        <div class="header">СТАТИСТИКА VPN</div>
+        
+        <div class="card">
+            <div class="label">Статус</div>
+            <div class="value" id="status">-</div>
+        </div>
+
+        <div class="card">
+            <div class="label">Трафик (Использовано / Всего)</div>
+            <div class="value" id="traffic">- / -</div>
+        </div>
+
+        <div class="card">
+            <div class="label">Остаток времени</div>
+            <div class="value" id="expire">-</div>
+        </div>
+
+        <button class="btn" id="copyBtn">Скопировать ключ</button>
+    </div>
+
+    <div id="loader">ЗАГРУЗКА...</div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Разворачиваем на весь экран
+
+        // Автоматическая подстройка под тему Telegram (светлая/темная)
+        if (tg.colorScheme === 'dark') {
+            document.body.classList.add('dark-theme');
+        }
+
+        const userId = tg.initDataUnsafe?.user?.id;
+        let subLink = "";
+
+        // Замени на URL своего бэкенда
+        const BACKEND_URL = "http://77.110.101.79:8000/api/user/"; 
+
+        async function fetchData() {
+            if (!userId) {
+                document.getElementById('loader').innerText = "ОШИБКА: ТГ ID НЕ НАЙДЕН";
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BACKEND_URL}${userId}`);
+                if (!response.ok) throw new Error('Пользователь не найден');
+                
+                const data = await response.json();
+                
+                document.getElementById('status').innerText = data.status === 'active' ? 'АКТИВЕН' : 'НЕАКТИВЕН';
+                document.getElementById('traffic').innerText = `${data.used_gb} GB / ${data.total_gb} GB`;
+                document.getElementById('expire').innerText = data.expire_str;
+                subLink = data.sub_link;
+
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+
+            } catch (error) {
+                document.getElementById('loader').innerText = "ОШИБКА: " + error.message.toUpperCase();
+            }
+        }
+
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            if (subLink) {
+                navigator.clipboard.writeText(subLink).then(() => {
+                    tg.showAlert("Ссылка скопирована в буфер обмена");
+                });
+            } else {
+                tg.showAlert("Ссылка не найдена");
+            }
+        });
+
+        fetchData();
+    </script>
+</body>
+</html>
