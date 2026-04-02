@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VPN Dashboard</title>
+    <title>Subscription Dashboard</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -25,7 +25,7 @@
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
-            font-family: 'Courier New', Courier, monospace; /* Технический, строгий шрифт */
+            font-family: 'Courier New', Courier, monospace;
             margin: 0;
             padding: 20px;
             display: flex;
@@ -45,6 +45,7 @@
             margin-bottom: 20px;
             border-bottom: 2px solid var(--border-color);
             padding-bottom: 10px;
+            letter-spacing: 2px;
         }
 
         .card {
@@ -54,9 +55,9 @@
         }
 
         .label {
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
-            opacity: 0.7;
+            opacity: 0.6;
             margin-bottom: 5px;
         }
 
@@ -68,7 +69,7 @@
         .btn {
             display: block;
             width: 100%;
-            padding: 15px;
+            padding: 18px;
             background-color: var(--btn-bg);
             color: var(--btn-text);
             text-align: center;
@@ -78,16 +79,18 @@
             border: none;
             cursor: pointer;
             margin-top: 10px;
+            transition: opacity 0.2s;
         }
 
         .btn:active {
-            opacity: 0.8;
+            opacity: 0.7;
         }
 
         #loader {
             text-align: center;
             font-weight: bold;
             margin-top: 50px;
+            text-transform: uppercase;
         }
 
         .hidden {
@@ -97,34 +100,33 @@
 </head>
 <body>
 
-    <div class="container" id="app" class="hidden">
-        <div class="header">СТАТИСТИКА VPN</div>
+    <div class="container hidden" id="app">
+        <div class="header">ORBIT SERVICE</div>
         
         <div class="card">
-            <div class="label">Статус</div>
+            <div class="label">Текущий статус</div>
             <div class="value" id="status">-</div>
         </div>
 
         <div class="card">
-            <div class="label">Трафик (Использовано / Всего)</div>
+            <div class="label">Данные (Использовано / Лимит)</div>
             <div class="value" id="traffic">- / -</div>
         </div>
 
         <div class="card">
-            <div class="label">Остаток времени</div>
+            <div class="label">Активно до</div>
             <div class="value" id="expire">-</div>
         </div>
 
-        <button class="btn" id="copyBtn">Скопировать ключ</button>
+        <button class="btn" id="copyBtn">Скопировать подписку</button>
     </div>
 
-    <div id="loader">ЗАГРУЗКА...</div>
+    <div id="loader">СИНХРОНИЗАЦИЯ...</div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем на весь экран
+        tg.expand();
 
-        // Автоматическая подстройка под тему Telegram (светлая/темная)
         if (tg.colorScheme === 'dark') {
             document.body.classList.add('dark-theme');
         }
@@ -132,41 +134,58 @@
         const userId = tg.initDataUnsafe?.user?.id;
         let subLink = "";
 
-        // Замени на URL своего бэкенда
         const BACKEND_URL = "https://api.orbit.gruu.ru:8888/api/user/"; 
 
         async function fetchData() {
             if (!userId) {
-                document.getElementById('loader').innerText = "ОШИБКА: ТГ ID НЕ НАЙДЕН";
+                document.getElementById('loader').innerText = "ОШИБКА: ID НЕ АВТОРИЗОВАН";
                 return;
             }
 
             try {
-                const response = await fetch(`${BACKEND_URL}${userId}`);
-                if (!response.ok) throw new Error('Пользователь не найден');
+                // Добавляем timestamp, чтобы избежать кэширования браузером
+                const response = await fetch(`${BACKEND_URL}${userId}?t=${new Date().getTime()}`);
+                if (!response.ok) throw new Error('Данные отсутствуют');
                 
                 const data = await response.json();
                 
-                document.getElementById('status').innerText = data.status === 'active' ? 'АКТИВЕН' : 'НЕАКТИВЕН';
+                document.getElementById('status').innerText = data.status === 'active' ? 'АКТИВЕН' : 'ОГРАНИЧЕН';
                 document.getElementById('traffic').innerText = `${data.used_gb} GB / ${data.total_gb} GB`;
                 document.getElementById('expire').innerText = data.expire_str;
+                
+                // Ссылка на подписку из Marzban
                 subLink = data.sub_link;
 
                 document.getElementById('loader').classList.add('hidden');
                 document.getElementById('app').classList.remove('hidden');
 
             } catch (error) {
-                document.getElementById('loader').innerText = "ОШИБКА: " + error.message.toUpperCase();
+                document.getElementById('loader').innerText = "ОШИБКА ДОСТУПА";
+                console.error(error);
             }
         }
 
         document.getElementById('copyBtn').addEventListener('click', () => {
             if (subLink) {
+                // Используем Telegram API для копирования и уведомления
                 navigator.clipboard.writeText(subLink).then(() => {
-                    tg.showAlert("Ссылка скопирована в буфер обмена");
+                    if (tg.showScanQrPopup) { // Проверка на наличие API
+                         tg.showAlert("Подписка скопирована в буфер обмена");
+                    } else {
+                         alert("Скопировано!");
+                    }
+                }).catch(err => {
+                    // Резервный метод для старых устройств
+                    const el = document.createElement('textarea');
+                    el.value = subLink;
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                    tg.showAlert("Подписка скопирована");
                 });
             } else {
-                tg.showAlert("Ссылка не найдена");
+                tg.showAlert("Данные подписки еще не загружены");
             }
         });
 
